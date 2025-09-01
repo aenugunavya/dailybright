@@ -6,6 +6,7 @@ CREATE TABLE public.users (
     id UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
     email TEXT NOT NULL,
     display_name TEXT,
+    profile_photo_url TEXT,
     tz TEXT, -- IANA timezone like 'America/New_York'
     onesignal_player_id TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
@@ -38,7 +39,7 @@ CREATE TABLE public.entries (
     user_id UUID REFERENCES public.users(id) ON DELETE CASCADE NOT NULL,
     date DATE NOT NULL,
     prompt_id INTEGER REFERENCES public.prompts(id) ON DELETE CASCADE NOT NULL,
-    text TEXT NOT NULL CHECK (char_length(text) <= 140),
+    text TEXT NOT NULL CHECK (char_length(text) <= 2000),
     photo_url TEXT,
     on_time BOOLEAN DEFAULT false,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
@@ -210,6 +211,82 @@ CREATE TRIGGER set_updated_at_users
 CREATE TRIGGER set_updated_at_streaks
     BEFORE UPDATE ON public.streaks
     FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
+
+-- Storage buckets for photos
+INSERT INTO storage.buckets (id, name, public)
+VALUES 
+  ('profiles', 'profiles', true),
+  ('entries', 'entries', true);
+
+-- Storage policies
+CREATE POLICY "Users can upload their own profile photos"
+ON storage.objects FOR INSERT 
+WITH CHECK (
+  bucket_id = 'profiles' 
+  AND auth.uid()::text = (storage.foldername(name))[1]
+);
+
+CREATE POLICY "Users can update their own profile photos"
+ON storage.objects FOR UPDATE 
+USING (
+  bucket_id = 'profiles' 
+  AND auth.uid()::text = (storage.foldername(name))[1]
+);
+
+CREATE POLICY "Users can delete their own profile photos"
+ON storage.objects FOR DELETE 
+USING (
+  bucket_id = 'profiles' 
+  AND auth.uid()::text = (storage.foldername(name))[1]
+);
+
+CREATE POLICY "Anyone can view profile photos"
+ON storage.objects FOR SELECT
+USING (bucket_id = 'profiles');
+
+CREATE POLICY "Users can upload their own entry photos"
+ON storage.objects FOR INSERT 
+WITH CHECK (
+  bucket_id = 'entries' 
+  AND auth.uid()::text = (storage.foldername(name))[1]
+);
+
+CREATE POLICY "Users can delete their own entry photos"
+ON storage.objects FOR DELETE 
+USING (
+  bucket_id = 'entries' 
+  AND auth.uid()::text = (storage.foldername(name))[1]
+);
+
+CREATE POLICY "Users can view entry photos from friends"
+ON storage.objects FOR SELECT
+USING (
+  bucket_id = 'entries' 
+  AND (
+    auth.uid()::text = (storage.foldername(name))[1]
+    OR EXISTS (
+      SELECT 1 FROM public.friends 
+      WHERE friends.user_id = auth.uid() 
+      AND friends.friend_id::text = (storage.foldername(name))[1]
+      AND friends.status = 'accepted'
+    )
+  )
+);
+
+-- Function to handle new user signup
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER AS $$
+BEGIN
+    INSERT INTO public.users (id, email)
+    VALUES (NEW.id, NEW.email);
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Trigger to automatically create user profile when user signs up
+CREATE OR REPLACE TRIGGER on_auth_user_created
+    AFTER INSERT ON auth.users
+    FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
 -- Insert some sample prompts
 INSERT INTO public.prompts (text, tags) VALUES

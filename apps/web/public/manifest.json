@@ -1,0 +1,34 @@
+{
+  "name": "GratiTime - Daily Gratitude Journaling",
+  "short_name": "GratiTime",
+  "description": "A BeReal-style gratitude journaling platform with random daily notifications",
+  "start_url": "/dashboard/today",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#8b5cf6",
+  "orientation": "portrait",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "48x48",
+      "type": "image/x-icon"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Share Gratitude",
+      "short_name": "Post",
+      "description": "Share what you're grateful for today",
+      "url": "/dashboard/today",
+      "icons": [
+        {
+          "src": "/favicon.ico",
+          "sizes": "48x48"
+        }
+      ]
+    }
+  ],
+  "categories": ["lifestyle", "social", "wellness"],
+  "screenshots": []
+}

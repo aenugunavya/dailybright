@@ -5,11 +5,15 @@ import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
-export function AuthForm() {
+interface AuthFormProps {
+  mode?: 'signin' | 'signup'
+}
+
+export function AuthForm({ mode = 'signin' }: AuthFormProps) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [isLoading, setIsLoading] = useState(false)
-  const [isSignUp, setIsSignUp] = useState(false)
+  const [isSignUp, setIsSignUp] = useState(mode === 'signup')
   const [message, setMessage] = useState('')
 
   const supabase = createClient()
@@ -29,6 +33,7 @@ export function AuthForm() {
           },
         })
         if (error) throw error
+        
         setMessage('Check your email for the confirmation link!')
       } else {
         const { error } = await supabase.auth.signInWithPassword({
@@ -36,6 +41,9 @@ export function AuthForm() {
           password,
         })
         if (error) throw error
+        
+        // Redirect to dashboard after successful signin
+        window.location.href = '/dashboard/today'
       }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'An error occurred')

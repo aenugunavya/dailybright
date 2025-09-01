@@ -16,6 +16,13 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "GratiTime - Daily Gratitude Journaling",
   description: "A BeReal-style gratitude journaling platform",
+  manifest: "/manifest.json",
+  other: {
+    'mobile-web-app-capable': 'yes',
+    'apple-mobile-web-app-capable': 'yes',
+    'apple-mobile-web-app-status-bar-style': 'default',
+    'apple-mobile-web-app-title': 'GratiTime',
+  }
 };
 
 export default function RootLayout({

@@ -6,6 +6,7 @@ export interface Database {
           id: string
           email: string
           display_name: string | null
+          profile_photo_url: string | null
           tz: string | null
           onesignal_player_id: string | null
           created_at: string
@@ -15,6 +16,7 @@ export interface Database {
           id: string
           email: string
           display_name?: string | null
+          profile_photo_url?: string | null
           tz?: string | null
           onesignal_player_id?: string | null
           created_at?: string
@@ -24,6 +26,7 @@ export interface Database {
           id?: string
           email?: string
           display_name?: string | null
+          profile_photo_url?: string | null
           tz?: string | null
           onesignal_player_id?: string | null
           created_at?: string

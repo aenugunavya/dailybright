@@ -8,13 +8,15 @@ export async function GET(request: NextRequest) {
   const next = searchParams.get('next') ?? '/dashboard/today'
 
   if (code) {
-    const supabase = createClient()
+    const supabase = await createClient()
     const { error } = await supabase.auth.exchangeCodeForSession(code)
+    
     if (!error) {
+      // User profile creation is now handled by database trigger
       return NextResponse.redirect(`${origin}${next}`)
     }
   }
 
-  // return the user to an error page with instructions
-  return NextResponse.redirect(`${origin}/auth/auth-code-error`)
+  // return the user to login page if there's an error
+  return NextResponse.redirect(`${origin}/login?error=auth_failed`)
 }

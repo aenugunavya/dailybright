@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import type { User } from '@supabase/supabase-js'
+import type { User, AuthChangeEvent, Session } from '@supabase/supabase-js'
 
 interface AuthContextType {
   user: User | null
@@ -52,37 +52,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+      async (event: AuthChangeEvent, session: Session | null) => {
         setUser(session?.user ?? null)
         setLoading(false)
 
-        // Store timezone on first login
+        // Store timezone on first login (run in background, don't block)
         if (event === 'SIGNED_IN' && session?.user) {
-          const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone
-          
-          try {
-            // Check if user already has timezone set
-            const { data: existingUser } = await supabase
-              .from('users')
-              .select('tz')
-              .eq('id', session.user.id)
-              .single()
-
-            if (!existingUser?.tz) {
-              // Update user with timezone
-              await supabase
+          setTimeout(async () => {
+            const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone
+            
+            try {
+              // Wait a bit to ensure the trigger has created the user profile
+              await new Promise(resolve => setTimeout(resolve, 1000))
+              
+              // Check if user already has timezone set
+              const { data: existingUser } = await supabase
                 .from('users')
-                .upsert({
-                  id: session.user.id,
-                  email: session.user.email!,
-                  tz: timezone,
-                  updated_at: new Date().toISOString(),
-                })
-                .select()
+                .select('tz')
+                .eq('id', session.user.id)
+                .single()
+
+              if (!existingUser?.tz) {
+                // Update user with timezone
+                await supabase
+                  .from('users')
+                  .update({ tz: timezone })
+                  .eq('id', session.user.id)
+              }
+            } catch (err) {
+              console.error('Failed to update user timezone:', err)
+              // This is non-critical, so don't affect the user experience
             }
-          } catch (err) {
-            console.error('Failed to update user timezone:', err)
-          }
+          }, 0)
         }
       }
     )
