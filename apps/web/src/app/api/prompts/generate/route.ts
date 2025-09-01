@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
     const openaiApiKey = process.env.OPENAI_API_KEY
     
     let promptText = ''
-    let debugInfo = {
+    const debugInfo = {
       hasApiKey: !!openaiApiKey,
       keyPrefix: openaiApiKey ? openaiApiKey.substring(0, 7) + '...' : 'none'
     }

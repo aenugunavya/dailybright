@@ -30,13 +30,17 @@ export class PushNotificationService {
 
       // Subscribe to push notifications
       if (this.registration && 'PushManager' in window) {
-        const subscription = await this.registration.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey: this.urlB64ToUint8Array(
-            // You'll need to generate VAPID keys for push notifications
-            process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || ''
-          )
-        })
+        const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || ''
+        if (vapidKey) {
+          const subscription = await this.registration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: this.urlB64ToUint8Array(vapidKey)
+          })
+
+          // Send subscription to your server
+          await this.sendSubscriptionToServer(subscription)
+        }
+        return true
 
         // Send subscription to your server
         await this.sendSubscriptionToServer(subscription)
