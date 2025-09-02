@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -12,6 +13,7 @@ interface AuthFormProps {
 export function AuthForm({ mode = 'signin' }: AuthFormProps) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [isSignUp, setIsSignUp] = useState(mode === 'signup')
   const [message, setMessage] = useState('')
@@ -22,6 +24,13 @@ export function AuthForm({ mode = 'signin' }: AuthFormProps) {
     e.preventDefault()
     setIsLoading(true)
     setMessage('')
+
+    // Validate password confirmation for signup
+    if (isSignUp && password !== confirmPassword) {
+      setMessage('Passwords do not match')
+      setIsLoading(false)
+      return
+    }
 
     try {
       if (isSignUp) {
@@ -87,6 +96,17 @@ export function AuthForm({ mode = 'signin' }: AuthFormProps) {
             required
           />
         </div>
+        {isSignUp && (
+          <div>
+            <Input
+              type="password"
+              placeholder="Confirm Password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              required
+            />
+          </div>
+        )}
         <Button type="submit" className="w-full" disabled={isLoading}>
           {isLoading ? 'Loading...' : isSignUp ? 'Sign Up' : 'Sign In'}
         </Button>
@@ -113,15 +133,21 @@ export function AuthForm({ mode = 'signin' }: AuthFormProps) {
       </Button>
 
       <div className="text-center">
-        <button
-          type="button"
-          onClick={() => setIsSignUp(!isSignUp)}
-          className="text-sm text-accent hover:text-accent/80 hover:underline transition-colors font-medium"
-        >
-          {isSignUp
-            ? 'Already have an account? Sign in'
-            : "Don't have an account? Sign up"}
-        </button>
+        {isSignUp ? (
+          <Link
+            href="/login"
+            className="text-sm text-accent hover:text-accent/80 hover:underline transition-colors font-medium"
+          >
+            Already have an account? Sign in
+          </Link>
+        ) : (
+          <Link
+            href="/signup"
+            className="text-sm text-accent hover:text-accent/80 hover:underline transition-colors font-medium"
+          >
+            Don't have an account? Sign up
+          </Link>
+        )}
       </div>
 
       {message && (

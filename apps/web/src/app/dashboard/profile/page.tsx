@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { useEffect, useState } from 'react'
 import { databaseService } from '@/lib/database'
 import { EditProfileModal } from '@/components/profile/edit-profile-modal'
+import { ChangePasswordModal } from '@/components/profile/change-password-modal'
 import Link from 'next/link'
 
 export default function ProfilePage() {
@@ -12,6 +13,7 @@ export default function ProfilePage() {
   const [userProfile, setUserProfile] = useState<any>(null)
   const [streaks, setStreaks] = useState({ current_count: 0, longest_count: 0 })
   const [isEditProfileOpen, setIsEditProfileOpen] = useState(false)
+  const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
@@ -119,25 +121,11 @@ export default function ProfilePage() {
               <h3 className="text-lg font-semibold mb-6 text-foreground font-nunito">Settings</h3>
               <div className="space-y-4">
                 <button 
-                  onClick={() => alert('Notification settings coming soon!')}
+                  onClick={() => setIsChangePasswordOpen(true)}
                   className="w-full text-left p-4 rounded-2xl hover:bg-accent/5 bg-muted/50 border border-border transition-all duration-200 hover:border-accent/30"
                 >
-                  <div className="font-medium text-foreground mb-1">🔔 Notifications</div>
-                  <div className="text-sm text-muted-foreground">Manage when you get notified</div>
-                </button>
-                <button 
-                  onClick={() => alert('Timezone settings coming soon!')}
-                  className="w-full text-left p-4 rounded-2xl hover:bg-accent/5 bg-muted/50 border border-border transition-all duration-200 hover:border-accent/30"
-                >
-                  <div className="font-medium text-foreground mb-1">🌍 Timezone</div>
-                  <div className="text-sm text-muted-foreground">Update your timezone</div>
-                </button>
-                <button 
-                  onClick={() => alert('Privacy settings coming soon!')}
-                  className="w-full text-left p-4 rounded-2xl hover:bg-accent/5 bg-muted/50 border border-border transition-all duration-200 hover:border-accent/30"
-                >
-                  <div className="font-medium text-foreground mb-1">🔒 Privacy</div>
-                  <div className="text-sm text-muted-foreground">Control who sees your posts</div>
+                  <div className="font-medium text-foreground mb-1">🔒 Change Password</div>
+                  <div className="text-sm text-muted-foreground">Update your account password</div>
                 </button>
               </div>
             </div>
@@ -150,6 +138,12 @@ export default function ProfilePage() {
           onClose={() => setIsEditProfileOpen(false)}
           onProfileUpdated={loadUserData}
           currentProfile={userProfile}
+        />
+
+        {/* Change Password Modal */}
+        <ChangePasswordModal
+          isOpen={isChangePasswordOpen}
+          onClose={() => setIsChangePasswordOpen(false)}
         />
 
         {/* Navigation */}
