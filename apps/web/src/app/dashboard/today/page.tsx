@@ -387,7 +387,17 @@ export default function TodayPage() {
                     ⚠️ Fallback prompt - daily generation will be available soon!
                   </p>
                 )}
-                {todaysPrompt.daily_prompt_info?.scheduled_time && (
+                {todaysPrompt.is_previous_day && (
+                  <div className="text-xs text-muted-foreground mt-2">
+                    <p className="mb-1">
+                      📅 This is yesterday's prompt (still active until today's is released)
+                    </p>
+                    {todaysPrompt.next_prompt_time && (
+                      <p>🕐 Today's new prompt will be available at {todaysPrompt.next_prompt_time}</p>
+                    )}
+                  </div>
+                )}
+                {!todaysPrompt.is_previous_day && todaysPrompt.daily_prompt_info?.scheduled_time && (
                   <p className="text-xs text-muted-foreground mt-2">
                     🕐 Generated today at {todaysPrompt.daily_prompt_info.scheduled_time}
                   </p>
@@ -398,9 +408,15 @@ export default function TodayPage() {
                 <p className="text-muted-foreground italic text-lg leading-relaxed font-nunito">
                   {todaysPrompt?.message || "No prompt available for today yet. Check back later! 🌅"}
                 </p>
-                <p className="text-xs text-muted-foreground mt-2">
-                  💡 New prompts are generated automatically throughout the day
-                </p>
+                {todaysPrompt?.scheduled_time ? (
+                  <p className="text-xs text-muted-foreground mt-2">
+                    🕐 Today's prompt will be ready at {todaysPrompt.scheduled_time}
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted-foreground mt-2">
+                    💡 New prompts are generated automatically throughout the day
+                  </p>
+                )}
               </div>
             )}
           </div>

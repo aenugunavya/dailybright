@@ -8,12 +8,15 @@ export class NotificationService {
   private hasPermission = false
 
   private constructor() {
-    this.initializeServiceWorker()
-    this.requestPermission()
+    // Only initialize on client side
+    if (typeof window !== 'undefined') {
+      this.initializeServiceWorker()
+      this.requestPermission()
+    }
   }
 
   async initializeServiceWorker(): Promise<void> {
-    if ('serviceWorker' in navigator) {
+    if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
       try {
         const registration = await navigator.serviceWorker.register('/sw.js')
         console.log('Service Worker registered:', registration)
@@ -31,8 +34,8 @@ export class NotificationService {
   }
 
   async requestPermission(): Promise<boolean> {
-    if (!('Notification' in window)) {
-      console.log('This browser does not support notifications')
+    if (typeof window === 'undefined' || !('Notification' in window)) {
+      console.log('This browser does not support notifications or running on server')
       return false
     }
 
@@ -51,8 +54,8 @@ export class NotificationService {
   }
 
   showNotification(title: string, options?: NotificationOptions): void {
-    if (!this.hasPermission) {
-      console.log('Notification permission not granted')
+    if (typeof window === 'undefined' || !this.hasPermission) {
+      console.log('Notification permission not granted or running on server')
       return
     }
 
@@ -98,6 +101,11 @@ export class NotificationService {
   }
 
   scheduleRandomNotification(): void {
+    if (typeof window === 'undefined') {
+      console.log('Cannot schedule notifications on server side')
+      return
+    }
+
     // Clear any existing timeout
     this.clearScheduledNotification()
 
@@ -185,6 +193,8 @@ export class NotificationService {
   }
 
   clearScheduledNotification(): void {
+    if (typeof window === 'undefined') return
+    
     const timeoutId = localStorage.getItem('notificationTimeoutId')
     if (timeoutId) {
       clearTimeout(parseInt(timeoutId))
@@ -194,6 +204,8 @@ export class NotificationService {
   }
 
   getNextNotificationTime(): Date | null {
+    if (typeof window === 'undefined') return null
+    
     const timeString = localStorage.getItem('nextNotificationTime')
     return timeString ? new Date(timeString) : null
   }

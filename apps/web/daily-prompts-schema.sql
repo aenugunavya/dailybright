@@ -26,14 +26,19 @@ CREATE POLICY "Service can manage daily prompts" ON public.daily_prompts
         OR auth.role() = 'service_role'
     );
 
--- Function to get today's active prompt
+-- Function to get today's active prompt (respects scheduled release time and shows previous prompt until new one is released)
 CREATE OR REPLACE FUNCTION public.get_todays_prompt()
 RETURNS JSON AS $$
 DECLARE
     v_today_prompt RECORD;
+    v_yesterday_prompt RECORD;
+    v_current_time TIME;
     v_result JSON;
 BEGIN
-    -- Get today's active prompt with full prompt details
+    -- Get current time
+    v_current_time := CURRENT_TIME;
+    
+    -- First, try to get today's active prompt
     SELECT 
         dp.id as daily_prompt_id,
         dp.date,
@@ -50,27 +55,116 @@ BEGIN
     AND dp.is_active = true
     LIMIT 1;
     
+    -- Check if today's prompt exists and is ready to be released
     IF v_today_prompt IS NOT NULL THEN
-        v_result := json_build_object(
-            'success', true,
-            'has_prompt', true,
-            'daily_prompt_id', v_today_prompt.daily_prompt_id,
-            'date', v_today_prompt.date,
-            'generated_at', v_today_prompt.generated_at,
-            'scheduled_time', v_today_prompt.scheduled_time,
-            'prompt', json_build_object(
-                'id', v_today_prompt.prompt_id,
-                'text', v_today_prompt.prompt_text,
-                'tags', v_today_prompt.tags,
-                'created_at', v_today_prompt.prompt_created_at
-            )
-        );
+        -- If no scheduled_time is set, release immediately (backwards compatibility)
+        -- Otherwise, only release if current time is past scheduled time
+        IF v_today_prompt.scheduled_time IS NULL OR v_current_time >= v_today_prompt.scheduled_time THEN
+            v_result := json_build_object(
+                'success', true,
+                'has_prompt', true,
+                'daily_prompt_id', v_today_prompt.daily_prompt_id,
+                'date', v_today_prompt.date,
+                'generated_at', v_today_prompt.generated_at,
+                'scheduled_time', v_today_prompt.scheduled_time,
+                'prompt', json_build_object(
+                    'id', v_today_prompt.prompt_id,
+                    'text', v_today_prompt.prompt_text,
+                    'tags', v_today_prompt.tags,
+                    'created_at', v_today_prompt.prompt_created_at
+                )
+            );
+        ELSE
+            -- Today's prompt exists but hasn't been released yet
+            -- Check if yesterday's prompt exists and can be shown as fallback
+            SELECT 
+                dp.id as daily_prompt_id,
+                dp.date,
+                dp.generated_at,
+                dp.scheduled_time,
+                p.id as prompt_id,
+                p.text as prompt_text,
+                p.tags,
+                p.created_at as prompt_created_at
+            INTO v_yesterday_prompt
+            FROM public.daily_prompts dp
+            JOIN public.prompts p ON dp.prompt_id = p.id
+            WHERE dp.date = CURRENT_DATE - INTERVAL '1 day'
+            AND dp.is_active = true
+            LIMIT 1;
+            
+            -- If yesterday's prompt exists and was released, show it until today's is ready
+            IF v_yesterday_prompt IS NOT NULL AND 
+               (v_yesterday_prompt.scheduled_time IS NULL OR v_yesterday_prompt.scheduled_time <= '23:59:59'::TIME) THEN
+                v_result := json_build_object(
+                    'success', true,
+                    'has_prompt', true,
+                    'daily_prompt_id', v_yesterday_prompt.daily_prompt_id,
+                    'date', v_yesterday_prompt.date,
+                    'generated_at', v_yesterday_prompt.generated_at,
+                    'scheduled_time', v_yesterday_prompt.scheduled_time,
+                    'is_previous_day', true,
+                    'next_prompt_time', v_today_prompt.scheduled_time,
+                    'prompt', json_build_object(
+                        'id', v_yesterday_prompt.prompt_id,
+                        'text', v_yesterday_prompt.prompt_text,
+                        'tags', v_yesterday_prompt.tags,
+                        'created_at', v_yesterday_prompt.prompt_created_at
+                    )
+                );
+            ELSE
+                -- No fallback available, show waiting message
+                v_result := json_build_object(
+                    'success', true,
+                    'has_prompt', false,
+                    'message', format('Today''s prompt will be available at %s. Check back soon!', v_today_prompt.scheduled_time::text),
+                    'scheduled_time', v_today_prompt.scheduled_time,
+                    'current_time', v_current_time
+                );
+            END IF;
+        END IF;
     ELSE
-        v_result := json_build_object(
-            'success', true,
-            'has_prompt', false,
-            'message', 'No prompt available for today yet'
-        );
+        -- No prompt exists for today, try to show yesterday's prompt as fallback
+        SELECT 
+            dp.id as daily_prompt_id,
+            dp.date,
+            dp.generated_at,
+            dp.scheduled_time,
+            p.id as prompt_id,
+            p.text as prompt_text,
+            p.tags,
+            p.created_at as prompt_created_at
+        INTO v_yesterday_prompt
+        FROM public.daily_prompts dp
+        JOIN public.prompts p ON dp.prompt_id = p.id
+        WHERE dp.date = CURRENT_DATE - INTERVAL '1 day'
+        AND dp.is_active = true
+        LIMIT 1;
+        
+        IF v_yesterday_prompt IS NOT NULL THEN
+            v_result := json_build_object(
+                'success', true,
+                'has_prompt', true,
+                'daily_prompt_id', v_yesterday_prompt.daily_prompt_id,
+                'date', v_yesterday_prompt.date,
+                'generated_at', v_yesterday_prompt.generated_at,
+                'scheduled_time', v_yesterday_prompt.scheduled_time,
+                'is_previous_day', true,
+                'prompt', json_build_object(
+                    'id', v_yesterday_prompt.prompt_id,
+                    'text', v_yesterday_prompt.prompt_text,
+                    'tags', v_yesterday_prompt.tags,
+                    'created_at', v_yesterday_prompt.prompt_created_at
+                )
+            );
+        ELSE
+            -- No prompt exists for today or yesterday
+            v_result := json_build_object(
+                'success', true,
+                'has_prompt', false,
+                'message', 'No prompt available yet. Check back later!'
+            );
+        END IF;
     END IF;
     
     RETURN v_result;
