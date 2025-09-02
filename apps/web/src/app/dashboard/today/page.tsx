@@ -19,8 +19,9 @@ export default function TodayPage() {
   const [todayState, setTodayState] = useState<any>(null)
   const [todayEntry, setTodayEntry] = useState<any>(null)
   const [recentEntries, setRecentEntries] = useState<any[]>([])
-  const [todaysPrompt, setTodaysPrompt] = useState<string>('')
+  const [todaysPrompt, setTodaysPrompt] = useState<any>(null)
   const [userProfile, setUserProfile] = useState<any>(null)
+  const [loadingPrompt, setLoadingPrompt] = useState(true)
   
   useEffect(() => {
     const timer = setInterval(() => {
@@ -40,11 +41,8 @@ export default function TodayPage() {
           // Initialize notification system
           notificationService.initializeForUser()
           
-          // Get today's prompt text directly (no database dependency)
-          const databaseService = createDatabaseService(supabase)
-          const prompt = databaseService.getTodaysPromptText()
-          console.log('🎯 Setting prompt:', prompt)
-          setTodaysPrompt(prompt)
+          // Load today's prompt from the new daily prompt system
+          loadTodaysPrompt()
           
           // Load today's state and entry
           console.log('🔄 Calling loadTodayData...')
@@ -55,6 +53,7 @@ export default function TodayPage() {
           console.error('❌ Failed to ensure user profile:', error)
           // Even if profile creation fails, try to load data
           console.log('🔄 Trying to load data anyway...')
+          loadTodaysPrompt()
           loadTodayData()
           loadRecentEntries()
         })
@@ -65,6 +64,57 @@ export default function TodayPage() {
   useEffect(() => {
     console.log('🔄 todayState changed to:', todayState)
   }, [todayState])
+
+  const loadTodaysPrompt = async () => {
+    if (!user) return
+
+    try {
+      setLoadingPrompt(true)
+      console.log('📅 Loading today\'s prompt...')
+      
+      const response = await fetch('/api/daily-prompt', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+
+      const data = await response.json()
+      console.log('📅 Daily prompt response:', data)
+
+      if (data.success && data.has_prompt) {
+        setTodaysPrompt(data)
+        
+        // Check if user has already responded
+        if (data.user_response?.has_responded) {
+          setTodayEntry(data.user_response)
+        }
+      } else {
+        // No prompt available yet - show a fallback
+        setTodaysPrompt({
+          has_prompt: false,
+          message: data.message || 'No prompt available for today yet. Check back later!'
+        })
+      }
+    } catch (error) {
+      console.error('❌ Error loading today\'s prompt:', error)
+      // Fallback to a default prompt
+      setTodaysPrompt({
+        has_prompt: true,
+        prompt: {
+          text: "⚡ What superpower did you accidentally unlock today without realizing it?",
+          id: null
+        },
+        is_fallback: true
+      })
+    } finally {
+      setLoadingPrompt(false)
+    }
+  }
 
   const ensureUserProfile = async () => {
     if (!user) return
@@ -213,17 +263,15 @@ export default function TodayPage() {
   }
 
   const handlePost = async () => {
-    if (!user || !gratitudeText.trim() || !todayState) return
+    if (!user || !gratitudeText.trim() || !todaysPrompt?.has_prompt) return
 
     console.log('🚀 Starting post process...')
     console.log('🚀 User:', user.id)
     console.log('🚀 Text:', gratitudeText.trim())
-    console.log('🚀 Today state:', todayState)
+    console.log('🚀 Today\'s prompt:', todaysPrompt)
 
     setIsPosting(true)
     try {
-      const databaseService = createDatabaseService(supabase)
-      
       // Upload photo if selected
       let photoUrl = null
       if (selectedPhoto) {
@@ -236,49 +284,35 @@ export default function TodayPage() {
         console.log('📷 Photo uploaded:', photoUrl)
       }
 
-      // Create entry using RPC function (bypasses RLS issues)
-      const today = new Date().toISOString().split('T')[0]
-      const entryData = {
-        p_user_id: user.id,
-        p_date: today,
-        p_prompt_id: todayState.prompt_id,
-        p_text: gratitudeText.trim(),
-        p_photo_url: photoUrl,
-        p_on_time: true
-      }
-      
-      console.log('📝 Creating entry with RPC function:', entryData)
-      
-      const { data, error } = await supabase.rpc('create_entry_safe', entryData)
-      
-      console.log('📝 Entry creation result:', { data, error })
-
-      if (error) {
-        throw new Error(error)
-      }
-
-      if (!data?.success) {
-        throw new Error(data?.error || 'Failed to create entry')
-      }
-
-      console.log('✅ Entry created successfully via RPC!')
-
-      // Reload data using the working RPC function
-      await loadTodayData()
-      
-      // Also load today's entries using the working RPC function
-      try {
-        const { data: entriesData } = await supabase.rpc('get_todays_entries_simple', {
-          p_user_id: user.id
+      // Use the new daily prompt API to create entry
+      const response = await fetch('/api/daily-prompt', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          text: gratitudeText.trim(),
+          photo_url: photoUrl
         })
-        
-        if (entriesData?.success && entriesData.entries) {
-          console.log('✅ Loaded entries after posting:', entriesData.count, 'entries')
-          // You can set these entries to state if you want to display them
-        }
-      } catch (err) {
-        console.error('Error loading entries after posting:', err)
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`)
       }
+
+      const data = await response.json()
+      console.log('📝 Entry creation result:', data)
+
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to create entry')
+      }
+
+      console.log('✅ Entry created successfully!')
+
+      // Update the today entry and reload prompt to get updated response status
+      setTodayEntry(data.entry)
+      await loadTodaysPrompt()
       
       // Clear form
       setGratitudeText('')
@@ -336,11 +370,39 @@ export default function TodayPage() {
           <h2 className="text-2xl font-bold mb-6 text-foreground font-nunito">Today's Gratitude Prompt</h2>
           
           <div className="mb-8">
-            <div className="bg-gradient-to-r from-warm-50 to-nature-50 border-l-4 border-primary p-6 rounded-r-2xl soft-shadow">
-              <p className="text-foreground italic text-lg leading-relaxed font-nunito">
-                "{todaysPrompt || '⚡ What superpower did you accidentally unlock today without realizing it?'}"
-              </p>
-            </div>
+            {loadingPrompt ? (
+              <div className="bg-gradient-to-r from-warm-50 to-nature-50 border-l-4 border-muted p-6 rounded-r-2xl soft-shadow">
+                <div className="animate-pulse">
+                  <div className="h-4 bg-muted rounded w-3/4 mb-2"></div>
+                  <div className="h-4 bg-muted rounded w-1/2"></div>
+                </div>
+              </div>
+            ) : todaysPrompt?.has_prompt ? (
+              <div className="bg-gradient-to-r from-warm-50 to-nature-50 border-l-4 border-primary p-6 rounded-r-2xl soft-shadow">
+                <p className="text-foreground italic text-lg leading-relaxed font-nunito">
+                  "{todaysPrompt.prompt.text}"
+                </p>
+                {todaysPrompt.is_fallback && (
+                  <p className="text-xs text-muted-foreground mt-2">
+                    ⚠️ Fallback prompt - daily generation will be available soon!
+                  </p>
+                )}
+                {todaysPrompt.daily_prompt_info?.scheduled_time && (
+                  <p className="text-xs text-muted-foreground mt-2">
+                    🕐 Generated today at {todaysPrompt.daily_prompt_info.scheduled_time}
+                  </p>
+                )}
+              </div>
+            ) : (
+              <div className="bg-gradient-to-r from-muted/20 to-muted/30 border-l-4 border-muted p-6 rounded-r-2xl soft-shadow">
+                <p className="text-muted-foreground italic text-lg leading-relaxed font-nunito">
+                  {todaysPrompt?.message || "No prompt available for today yet. Check back later! 🌅"}
+                </p>
+                <p className="text-xs text-muted-foreground mt-2">
+                  💡 New prompts are generated automatically throughout the day
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Show existing entry or form */}
