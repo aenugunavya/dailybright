@@ -20,6 +20,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
     
+    // Check for force regeneration via URL parameter
+    const url = new URL(request.url)
+    const forceRegenerate = url.searchParams.get('force') === 'true'
+    
     // Create service role client for database operations
     const supabase = await createClient()
     
@@ -28,13 +32,22 @@ export async function POST(request: NextRequest) {
     const { data: existingPrompt } = await supabase
       .rpc('get_todays_prompt')
     
-    if (existingPrompt?.has_prompt) {
+    if (existingPrompt?.has_prompt && !forceRegenerate) {
       console.log('✅ Daily prompt already exists for today')
       return NextResponse.json({
         success: true,
         message: 'Daily prompt already exists',
         existing_prompt: existingPrompt.prompt
       })
+    }
+    
+    if (forceRegenerate && existingPrompt?.has_prompt) {
+      console.log('🔄 Force regenerating existing prompt...')
+      // Deactivate existing prompt
+      await supabase
+        .from('daily_prompts')
+        .update({ is_active: false })
+        .eq('date', new Date().toISOString().split('T')[0])
     }
     
     // Generate a new prompt using OpenAI
@@ -200,6 +213,14 @@ export async function POST(request: NextRequest) {
 
 // Fallback creative prompts if OpenAI fails
 function getRandomCreativePrompt(date: Date): string {
+  // For today, let's use the solar panel prompt
+  const today = new Date().toISOString().split('T')[0]
+  const requestDate = date.toISOString().split('T')[0]
+  
+  if (today === requestDate) {
+    return "Your day's energy level: solar panel or dead battery? Why? 🔋"
+  }
+  
   const creativePrompts = [
     "If your day was a video game, what achievement did you unlock? 🎮",
     "Rate today's plot twists from 1-10. What was the wildest one? 📚",
@@ -210,7 +231,7 @@ function getRandomCreativePrompt(date: Date): string {
     "What background character in your life deserves the spotlight today? 🎭",
     "If today was a song, what would its title and genre be? 🎵",
     "What tiny miracle went completely unnoticed by everyone else? ✨",
-    "Rate your day: solar panel charged or battery drained? Why? 🔋",
+    "Your day's energy level: solar panel or dead battery? Why? 🔋",
     "If your gratitude was a color, what shade would paint today? 🎨",
     "What secret ingredient made today better than yesterday? 🧂",
     "Your day's surprise level: predictable sitcom or thriller twist? 📺",

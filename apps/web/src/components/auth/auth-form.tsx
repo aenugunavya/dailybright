@@ -38,7 +38,7 @@ export function AuthForm({ mode = 'signin' }: AuthFormProps) {
           email,
           password,
           options: {
-            emailRedirectTo: `${location.origin}/auth/callback`,
+            emailRedirectTo: `${process.env.NEXT_PUBLIC_APP_URL || location.origin}/auth/callback`,
           },
         })
         if (error) throw error
@@ -66,7 +66,7 @@ export function AuthForm({ mode = 'signin' }: AuthFormProps) {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${location.origin}/auth/callback`,
+        redirectTo: `${process.env.NEXT_PUBLIC_APP_URL || location.origin}/auth/callback`,
       },
     })
     if (error) {
