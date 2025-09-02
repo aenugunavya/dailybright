@@ -97,12 +97,12 @@ export function EditProfileModal({ isOpen, onClose, onProfileUpdated, currentPro
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-      <div className="gradient-card rounded-2xl p-6 w-full max-w-md">
+      <div className="soft-card p-6 w-full max-w-md soft-shadow-lg">
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-xl font-bold text-white">Edit Profile</h2>
+          <h2 className="text-xl font-bold text-foreground font-nunito">Edit Profile</h2>
           <button
             onClick={onClose}
-            className="text-slate-400 hover:text-white transition-colors"
+            className="text-muted-foreground hover:text-foreground transition-colors text-xl"
           >
             ✕
           </button>
@@ -111,11 +111,11 @@ export function EditProfileModal({ isOpen, onClose, onProfileUpdated, currentPro
         <form onSubmit={handleSave} className="space-y-6">
           {/* Profile Photo */}
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-3">
+            <label className="block text-sm font-medium text-foreground mb-3">
               Profile Photo
             </label>
             <div className="flex items-center space-x-4">
-              <div className="w-20 h-20 rounded-full overflow-hidden bg-slate-700 border-2 border-slate-600 flex items-center justify-center">
+              <div className="w-20 h-20 rounded-2xl overflow-hidden bg-gradient-to-br from-warm-400 to-warm-500 border-2 border-warm-300 flex items-center justify-center soft-shadow">
                 {profilePhotoPreview ? (
                   <img 
                     src={profilePhotoPreview} 
@@ -123,7 +123,7 @@ export function EditProfileModal({ isOpen, onClose, onProfileUpdated, currentPro
                     className="w-full h-full object-cover"
                   />
                 ) : (
-                  <span className="text-2xl">👤</span>
+                  <span className="text-2xl text-white">🌸</span>
                 )}
               </div>
               <div className="flex-1 space-y-2">
@@ -136,7 +136,7 @@ export function EditProfileModal({ isOpen, onClose, onProfileUpdated, currentPro
                 />
                 <label
                   htmlFor="profile-photo-edit"
-                  className="cursor-pointer inline-flex items-center px-3 py-2 bg-slate-700/70 border border-slate-600 rounded-lg text-sm text-slate-300 hover:bg-slate-600/70 transition-colors"
+                  className="cursor-pointer inline-flex items-center px-3 py-2 bg-accent/10 border border-accent/20 rounded-xl text-sm text-accent hover:bg-accent/20 transition-colors font-medium"
                 >
                   📷 Change Photo
                 </label>
@@ -144,7 +144,7 @@ export function EditProfileModal({ isOpen, onClose, onProfileUpdated, currentPro
                   <button
                     type="button"
                     onClick={handleRemovePhoto}
-                    className="block text-sm text-red-400 hover:text-red-300"
+                    className="block text-sm text-destructive hover:text-destructive/80 font-medium"
                   >
                     Remove Photo
                   </button>
@@ -155,7 +155,7 @@ export function EditProfileModal({ isOpen, onClose, onProfileUpdated, currentPro
 
           {/* Display Name */}
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-2">
+            <label className="block text-sm font-medium text-foreground mb-2">
               Display Name
             </label>
             <Input
@@ -163,7 +163,7 @@ export function EditProfileModal({ isOpen, onClose, onProfileUpdated, currentPro
               placeholder="Enter your display name"
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
-              className="h-12 bg-slate-700/70 border-slate-600 text-white placeholder:text-slate-400 focus:border-primary focus:ring-primary focus:ring-2"
+              className="h-12 bg-card border-border text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/20 focus:ring-2"
             />
           </div>
 
@@ -176,10 +176,10 @@ export function EditProfileModal({ isOpen, onClose, onProfileUpdated, currentPro
           </Button>
 
           {message && (
-            <div className={`text-center text-sm p-3 rounded-lg ${
+            <div className={`text-center text-sm p-3 rounded-2xl ${
               message.includes('success')
-                ? 'bg-green-500/10 text-green-400 border border-green-500/20'
-                : 'bg-red-500/10 text-red-400 border border-red-500/20'
+                ? 'bg-nature-50 text-nature-600 border border-nature-200'
+                : 'bg-destructive/10 text-destructive border border-destructive/20'
             }`}>
               {message}
             </div>

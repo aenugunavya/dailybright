@@ -102,7 +102,7 @@ export class DatabaseService {
       
       const { data, error } = await this.supabase
         .from('user_daily_state')
-        .select('*, prompts(*)')
+        .select('*')
         .eq('user_id', userId)
         .eq('date', today)
         .single()
@@ -119,29 +119,26 @@ export class DatabaseService {
 
   async createTodayState(userId: string): Promise<{ data: DailyState | null; error: string | null }> {
     try {
+      console.log('🔄 Creating today state for user:', userId)
       const today = new Date().toISOString().split('T')[0]
+      console.log('📅 Today\'s date:', today)
       
-      // Try to get today's AI-generated prompt first
-      let promptId = await this.getTodaysPromptId()
+      // First check if a state already exists for today
+      const { data: existingState } = await this.supabase
+        .from('user_daily_state')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('date', today)
+        .single()
       
-      if (!promptId) {
-        // Generate a new prompt for today
-        promptId = await this.generateTodaysPromptId()
+      if (existingState) {
+        console.log('✅ Daily state already exists for today:', existingState.user_id)
+        return { data: existingState, error: null }
       }
       
-      if (!promptId) {
-        // Fallback to random existing prompt
-        const { data: prompts, error: promptError } = await this.supabase
-          .from('prompts')
-          .select('id')
-          .limit(100)
-
-        if (promptError || !prompts?.length) {
-          return { data: null, error: 'Failed to get prompt' }
-        }
-
-        promptId = prompts[Math.floor(Math.random() * prompts.length)].id
-      }
+      // Use deterministic prompt selection based on date instead of fetching from database
+      const promptId = this.getDeterministicPromptId()
+      console.log('✨ Selected deterministic prompt ID:', promptId)
 
       // Generate random time for today (9 AM to 9 PM)
       const now = new Date()
@@ -156,6 +153,7 @@ export class DatabaseService {
       const windowEnd = new Date(windowStart)
       windowEnd.setHours(windowEnd.getHours() + 2) // 2 hour window
 
+      console.log('⏰ Creating daily state with prompt ID:', promptId)
       const { data, error } = await this.supabase
         .from('user_daily_state')
         .insert({
@@ -165,15 +163,19 @@ export class DatabaseService {
           window_start_ts: windowStart.toISOString(),
           window_end_ts: windowEnd.toISOString()
         })
-        .select('*, prompts(*)')
+        .select('*')
         .single()
 
       if (error) {
-        return { data: null, error: error.message }
+        console.error('❌ Failed to create daily state:', error)
+        console.error('❌ Error details:', JSON.stringify(error, null, 2))
+        return { data: null, error: error.message || 'Unknown database error' }
       }
-
+      
+      console.log('✅ Daily state created successfully:', data?.user_id)
       return { data, error: null }
     } catch (error) {
+      console.error('💥 Error in createTodayState:', error)
       return { data: null, error: 'Failed to create daily state' }
     }
   }
@@ -396,47 +398,62 @@ export class DatabaseService {
     }
   }
 
-  private async getTodaysPromptId(): Promise<number | null> {
-    try {
-      const today = new Date().toISOString().split('T')[0]
-      
-      // Look for a prompt generated today
-      const { data } = await this.supabase
-        .from('prompts')
-        .select('id')
-        .contains('tags', ['daily', 'generated'])
-        .gte('created_at', today)
-        .lt('created_at', new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString())
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single()
-
-      return data?.id || null
-    } catch (error) {
-      return null
-    }
+  private getDeterministicPromptId(): number {
+    // Use deterministic selection based on today's date
+    // This approach avoids database queries and RLS issues entirely
+    const today = new Date()
+    const dayOfYear = Math.floor((today.getTime() - new Date(today.getFullYear(), 0, 0).getTime()) / (1000 * 60 * 60 * 24))
+    
+    // These are the prompt IDs that were seeded (91-111, total 21 prompts)
+    const availablePromptIds = [91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111]
+    
+    // Select a prompt based on the day of year
+    const promptIndex = dayOfYear % availablePromptIds.length
+    const selectedPromptId = availablePromptIds[promptIndex]
+    
+    console.log(`📅 Day ${dayOfYear} of year, selected prompt ${selectedPromptId} (index ${promptIndex} of ${availablePromptIds.length} available)`)
+    
+    return selectedPromptId
   }
 
-  private async generateTodaysPromptId(): Promise<number | null> {
-    try {
-      // Call the API to generate a new prompt
-      const response = await fetch('/api/prompts/generate', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to generate prompt')
-      }
-
-      const result = await response.json()
-      return result.prompt?.id || null
-    } catch (error) {
-      console.error('Failed to generate prompt:', error)
-      return null
-    }
+  // Get today's prompt text directly using the deterministic selection
+  getTodaysPromptText(): string {
+    // Use the same deterministic logic but return the actual prompt text
+    // This avoids any database/RLS issues entirely
+    const today = new Date()
+    const dayOfYear = Math.floor((today.getTime() - new Date(today.getFullYear(), 0, 0).getTime()) / (1000 * 60 * 60 * 24))
+    
+    // Hardcoded prompts from our seed data (in order 91-111)
+    const prompts = [
+      "What are you grateful for today? Share something that brought you joy or made you smile.",
+      "In exactly 5 words, describe your day's emotional soundtrack 🎵",
+      "If your day was a color, what would it be and why?",
+      "What superpower did you accidentally use today without realizing it?",
+      "Rate your day like a video game: What was your biggest XP gain?",
+      "If today was a movie genre, what would it be called?",
+      "What invisible thing deserves a thank-you note from you today?",
+      "Your day as a weather forecast: What was the emotional climate? ⛅",
+      "If you could time-travel and high-five your past self, when would it be?",
+      "What secret ingredient made today better than yesterday?",
+      "Rate your day's plot twists from 1-10. What was the best one?",
+      "If your gratitude had a flavor today, what would you taste?",
+      "What background character in your life deserves the spotlight today?",
+      "Your day's energy level: solar panel or dead battery? Why?",
+      "If today was a song, what would be its title and genre?",
+      "What tiny miracle went completely unnoticed by everyone else today?",
+      "In 3 words, describe what your future self would thank you for",
+      "What invisible force field protected your mood today? 🛡️",
+      "If your day was a text message, what emoji combo would it be?",
+      "What ordinary thing became extraordinary for exactly 30 seconds today?",
+      "Rate today's surprise level: predictable sitcom or plot-twist thriller?"
+    ]
+    
+    const promptIndex = dayOfYear % prompts.length
+    const selectedPrompt = prompts[promptIndex]
+    
+    console.log(`📅 Day ${dayOfYear} of year, selected prompt: "${selectedPrompt.substring(0, 50)}..." (index ${promptIndex})`)
+    
+    return selectedPrompt
   }
 }
 

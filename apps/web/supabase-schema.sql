@@ -105,6 +105,9 @@ CREATE POLICY "Users can insert own profile" ON public.users
 CREATE POLICY "Authenticated users can view prompts" ON public.prompts
     FOR SELECT USING (auth.role() = 'authenticated');
 
+CREATE POLICY "Authenticated users can insert prompts" ON public.prompts
+    FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+
 -- User daily state policies
 CREATE POLICY "Users can view own daily state" ON public.user_daily_state
     FOR SELECT USING (auth.uid() = user_id);

@@ -2,16 +2,29 @@ import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 
 export async function POST(request: NextRequest) {
+  console.log('🔍 Prompt generation API called')
+  
   try {
     const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    console.log('✅ Supabase client created')
+    
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    
+    if (authError) {
+      console.error('❌ Auth error:', authError)
+      return NextResponse.json({ error: 'Authentication error' }, { status: 500 })
+    }
 
     if (!user) {
+      console.log('❌ No user found')
       return NextResponse.json({ error: 'Unauthorized - Please log in' }, { status: 401 })
     }
+    
+    console.log('✅ User authenticated:', user.id)
 
     // Generate prompt using OpenAI
     const openaiApiKey = process.env.OPENAI_API_KEY
+    console.log('🔑 OpenAI API key status:', !!openaiApiKey)
     
     let promptText = ''
     const debugInfo = {
@@ -121,6 +134,7 @@ export async function POST(request: NextRequest) {
 
     // Fallback to curated prompts if LLM fails
     if (!promptText) {
+      console.log('🔄 Using fallback prompts')
       const fallbackPrompts = [
         "In exactly 5 words, describe your day's emotional soundtrack 🎵",
         "If your day was a color, what would it be and why?",
@@ -150,20 +164,28 @@ export async function POST(request: NextRequest) {
       promptText = fallbackPrompts[promptIndex]
     }
 
+    console.log('💾 Storing prompt in database:', promptText)
+    
     // Store the generated prompt in the database
     const { data: newPrompt, error } = await supabase
       .from('prompts')
       .insert({
         text: promptText,
-        tags: ['daily', 'generated', 'ai']
+        tags: ['daily', 'generated'] // Remove 'ai' tag to match what getTodaysPromptId looks for
       })
       .select()
       .single()
 
     if (error) {
-      console.error('Database error:', error)
-      return NextResponse.json({ error: 'Failed to store prompt' }, { status: 500 })
+      console.error('❌ Database error:', error)
+      return NextResponse.json({ 
+        error: 'Failed to store prompt',
+        details: error.message,
+        suggestion: 'You may need to run the RLS policy fix script in your Supabase dashboard'
+      }, { status: 500 })
     }
+    
+    console.log('✅ Prompt stored successfully:', newPrompt.id)
 
     return NextResponse.json({
       success: true,

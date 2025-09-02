@@ -68,14 +68,7 @@ export function AuthForm({ mode = 'signin' }: AuthFormProps) {
 
   return (
     <div className="w-full max-w-md mx-auto space-y-6">
-      <div className="text-center">
-        <h1 className="text-2xl font-bold">Welcome to GratiTime</h1>
-        <p className="text-gray-600 mt-2">
-          {isSignUp ? 'Create your account' : 'Sign in to your account'}
-        </p>
-      </div>
-
-      <form onSubmit={handleAuth} className="space-y-4">
+      <form onSubmit={handleAuth} className="space-y-5">
         <div>
           <Input
             type="email"
@@ -101,10 +94,10 @@ export function AuthForm({ mode = 'signin' }: AuthFormProps) {
 
       <div className="relative">
         <div className="absolute inset-0 flex items-center">
-          <span className="w-full border-t" />
+          <span className="w-full border-t border-border" />
         </div>
         <div className="relative flex justify-center text-xs uppercase">
-          <span className="bg-background px-2 text-muted-foreground">
+          <span className="bg-background px-3 text-muted-foreground font-medium">
             Or continue with
           </span>
         </div>
@@ -123,7 +116,7 @@ export function AuthForm({ mode = 'signin' }: AuthFormProps) {
         <button
           type="button"
           onClick={() => setIsSignUp(!isSignUp)}
-          className="text-sm text-blue-600 hover:underline"
+          className="text-sm text-accent hover:text-accent/80 hover:underline transition-colors font-medium"
         >
           {isSignUp
             ? 'Already have an account? Sign in'
@@ -132,10 +125,10 @@ export function AuthForm({ mode = 'signin' }: AuthFormProps) {
       </div>
 
       {message && (
-        <div className={`text-center text-sm ${
+        <div className={`text-center text-sm p-3 rounded-2xl ${
           message.includes('error') || message.includes('Error') 
-            ? 'text-red-600' 
-            : 'text-green-600'
+            ? 'text-destructive bg-destructive/10 border border-destructive/20' 
+            : 'text-nature-600 bg-nature-50 border border-nature-200'
         }`}>
           {message}
         </div>

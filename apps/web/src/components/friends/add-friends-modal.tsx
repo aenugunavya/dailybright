@@ -22,6 +22,12 @@ export function AddFriendsModal({ isOpen, onClose, onFriendAdded }: AddFriendsMo
     e.preventDefault()
     if (!user || !email.trim()) return
 
+    // Prevent users from adding themselves
+    if (user.email === email.trim()) {
+      setMessage('You cannot add yourself as a friend')
+      return
+    }
+
     setIsLoading(true)
     setMessage('')
 
@@ -31,7 +37,7 @@ export function AddFriendsModal({ isOpen, onClose, onFriendAdded }: AddFriendsMo
       if (error) {
         setMessage(error)
       } else {
-        setMessage('Friend request sent!')
+        setMessage('Friend request sent successfully!')
         setEmail('')
         onFriendAdded()
         setTimeout(() => {
@@ -40,7 +46,7 @@ export function AddFriendsModal({ isOpen, onClose, onFriendAdded }: AddFriendsMo
         }, 1500)
       }
     } catch (error) {
-      setMessage('Failed to send friend request')
+      setMessage('Failed to send friend request. Please try again.')
     } finally {
       setIsLoading(false)
     }
@@ -50,30 +56,38 @@ export function AddFriendsModal({ isOpen, onClose, onFriendAdded }: AddFriendsMo
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-      <div className="gradient-card rounded-2xl p-6 w-full max-w-md">
+      <div className="soft-card p-6 w-full max-w-md soft-shadow-lg">
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-xl font-bold text-white">Add Friends</h2>
+          <h2 className="text-xl font-bold text-foreground font-nunito">Add Friends</h2>
           <button
             onClick={onClose}
-            className="text-slate-400 hover:text-white transition-colors"
+            className="text-muted-foreground hover:text-foreground transition-colors text-xl"
           >
             ✕
           </button>
         </div>
 
-        <form onSubmit={handleAddFriend} className="space-y-4">
+        <form onSubmit={handleAddFriend} className="space-y-5">
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-2">
+            <label className="block text-sm font-medium text-foreground mb-2">
               Friend's Email
             </label>
             <Input
               type="email"
               placeholder="Enter email address"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="h-12 bg-slate-700/70 border-slate-600 text-white placeholder:text-slate-400 focus:border-primary focus:ring-primary focus:ring-2"
+              onChange={(e) => {
+                setEmail(e.target.value)
+                setMessage('') // Clear any previous messages
+              }}
+              className="h-12 bg-card border-border text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/20 focus:ring-2"
               required
             />
+            {user && email.trim() && user.email === email.trim() && (
+              <p className="text-xs text-destructive mt-2">
+                You cannot add yourself as a friend
+              </p>
+            )}
           </div>
 
           <Button
@@ -85,18 +99,18 @@ export function AddFriendsModal({ isOpen, onClose, onFriendAdded }: AddFriendsMo
           </Button>
 
           {message && (
-            <div className={`text-center text-sm p-3 rounded-lg ${
+            <div className={`text-center text-sm p-3 rounded-2xl ${
               message.includes('sent') || message.includes('success')
-                ? 'bg-green-500/10 text-green-400 border border-green-500/20'
-                : 'bg-red-500/10 text-red-400 border border-red-500/20'
+                ? 'bg-nature-50 text-nature-600 border border-nature-200'
+                : 'bg-destructive/10 text-destructive border border-destructive/20'
             }`}>
               {message}
             </div>
           )}
         </form>
 
-        <div className="mt-6 pt-4 border-t border-slate-600">
-          <p className="text-xs text-slate-400 text-center">
+        <div className="mt-6 pt-4 border-t border-border">
+          <p className="text-xs text-muted-foreground text-center leading-relaxed">
             Your friends will need to accept your request before you can see each other's posts.
           </p>
         </div>

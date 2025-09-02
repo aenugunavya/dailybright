@@ -42,19 +42,19 @@ export function NotificationPrompt() {
 
   return (
     <div className="fixed bottom-20 left-4 right-4 z-50 max-w-md mx-auto">
-      <div className="gradient-card rounded-lg p-4 border border-purple-500/30 shadow-lg">
-        <div className="flex items-start space-x-3">
+      <div className="soft-card p-5 border border-accent/30 soft-shadow-lg">
+        <div className="flex items-start space-x-4">
           <div className="text-2xl">🔔</div>
           <div className="flex-1">
-            <h4 className="font-medium text-white mb-1">Stay Connected with Gratitude</h4>
-            <p className="text-sm text-slate-300 mb-3">
+            <h4 className="font-medium text-foreground mb-2 font-nunito">Stay Connected with Gratitude</h4>
+            <p className="text-sm text-muted-foreground mb-4 leading-relaxed">
               Get surprise reminders throughout the day to share what you're grateful for!
             </p>
-            <div className="flex space-x-2">
+            <div className="flex space-x-3">
               <Button 
                 onClick={handleEnableNotifications}
                 size="sm"
-                className="bg-purple-600 hover:bg-purple-700 text-white"
+                className="bg-primary hover:bg-primary/90 text-primary-foreground"
               >
                 Enable Notifications
               </Button>
@@ -62,7 +62,7 @@ export function NotificationPrompt() {
                 onClick={handleDismiss}
                 variant="outline"
                 size="sm"
-                className="border-slate-600 text-slate-300 hover:bg-slate-700"
+                className="border-border text-muted-foreground hover:bg-accent/10 hover:border-accent"
               >
                 Maybe Later
               </Button>

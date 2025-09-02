@@ -1,11 +1,11 @@
 {
-  "name": "GratiTime - Daily Gratitude Journaling",
-  "short_name": "GratiTime",
+  "name": "Daily Bright - Daily Gratitude Journaling",
+  "short_name": "Daily Bright",
   "description": "A BeReal-style gratitude journaling platform with random daily notifications",
   "start_url": "/dashboard/today",
   "display": "standalone",
-  "background_color": "#0f172a",
-  "theme_color": "#8b5cf6",
+  "background_color": "#fefefe",
+  "theme_color": "#f97316",
   "orientation": "portrait",
   "scope": "/",
   "icons": [

@@ -19,6 +19,9 @@ export default function TodayPage() {
   const [todayState, setTodayState] = useState<any>(null)
   const [todayEntry, setTodayEntry] = useState<any>(null)
   const [recentEntries, setRecentEntries] = useState<any[]>([])
+  const [todaysPrompt, setTodaysPrompt] = useState<string>('')
+  const [userProfile, setUserProfile] = useState<any>(null)
+  
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentTime(new Date())
@@ -34,6 +37,9 @@ export default function TodayPage() {
         .then(() => {
           // Initialize notification system
           notificationService.initializeForUser()
+          
+          // Get today's prompt text directly (no database dependency)
+          setTodaysPrompt(databaseService.getTodaysPromptText())
           
           // Load today's state and entry
           loadTodayData()
@@ -59,6 +65,11 @@ export default function TodayPage() {
           email: user.email || '',
           display_name: user.user_metadata?.full_name || user.email?.split('@')[0] || 'User'
         })
+      }
+      
+      // Set user profile for display
+      if (existingUser) {
+        setUserProfile(existingUser)
       }
     } catch (error) {
       console.error('Error ensuring user profile:', error)
@@ -163,85 +174,107 @@ export default function TodayPage() {
 
   if (!user) {
     return <div className="min-h-screen gradient-bg flex items-center justify-center">
-      <div className="text-white">Loading...</div>
+      <div className="text-foreground">Loading...</div>
     </div>
   }
 
   return (
-    <div className="min-h-screen gradient-bg p-4">
+    <div className="min-h-screen gradient-bg p-6">
       <div className="max-w-md mx-auto">
         {/* Header */}
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold text-white">GratiTime</h1>
-          <Button onClick={signOut} variant="outline" size="sm" className="border-border bg-card/50 text-white hover:bg-accent">
+        <div className="flex justify-between items-center mb-8">
+          <div>
+            <h1 className="text-3xl font-bold text-foreground font-nunito">Daily Bright</h1>
+            <p className="text-sm text-muted-foreground mt-1">Your daily gratitude journey</p>
+          </div>
+          <Button 
+            onClick={signOut} 
+            variant="outline" 
+            size="sm" 
+            className="soft-button border-border bg-card/50 text-foreground hover:bg-accent/10 hover:border-accent"
+          >
             Sign Out
           </Button>
         </div>
 
         {/* User Info */}
-        <div className="gradient-card rounded-lg p-4 mb-6">
-          <p className="text-sm text-slate-300">Welcome back!</p>
-          <p className="font-medium text-white">{user.email}</p>
-          <p className="text-xs text-slate-400 mt-1">
+        <div className="soft-card p-6 mb-8 hover-lift">
+          <div className="flex items-center space-x-3 mb-3">
+            <div className="w-3 h-3 bg-secondary rounded-full animate-pulse"></div>
+            <p className="text-sm text-muted-foreground">Welcome back!</p>
+          </div>
+          <p className="font-medium text-foreground text-lg">
+            {userProfile?.display_name || user.user_metadata?.full_name || user.email?.split('@')[0] || 'User'}
+          </p>
+          <p className="text-xs text-muted-foreground mt-2">
             Local time: {currentTime.toLocaleString()}
           </p>
         </div>
 
-        {/* Today's Prompt */}
-        <div className="gradient-card rounded-lg p-6 mb-20">
-          <h2 className="text-lg font-semibold mb-4 text-white">Today's Gratitude Prompt</h2>
+        {/* Today's Prompt - Flattened design */}
+        <div className="mb-12">
+          <h2 className="text-2xl font-bold mb-6 text-foreground font-nunito">Today's Gratitude Prompt</h2>
           
-          {todayState?.prompts && (
-            <div className="bg-slate-700/70 rounded-lg p-4 mb-4 border border-slate-600">
-              <p className="text-slate-300 italic">
-                "{todayState.prompts.text}"
-              </p>
+          {todaysPrompt && (
+            <div className="mb-8">
+              <div className="bg-gradient-to-r from-warm-50 to-nature-50 border-l-4 border-primary p-6 rounded-r-2xl soft-shadow">
+                <p className="text-foreground italic text-lg leading-relaxed font-nunito">
+                  "{todaysPrompt}"
+                </p>
+              </div>
             </div>
           )}
           
-          {/* Notification Info */}
-          <div className="bg-purple-500/20 border border-purple-500/30 rounded-lg p-3 mb-4">
-            <div className="flex items-center space-x-2 mb-2">
-              <span className="text-lg">🎲</span>
-              <span className="font-medium text-purple-200">Random Gratitude Reminder</span>
+          {/* Show notification info only when prompt is not displayed */}
+          {!todaysPrompt && (
+            <div className="bg-gradient-to-r from-sky-50 to-accent/10 border border-sky-200 rounded-2xl p-6 mb-8 soft-shadow">
+              <div className="flex items-center space-x-3 mb-3">
+                <span className="text-2xl">🌅</span>
+                <span className="font-medium text-sky-700 text-lg">Random Gratitude Reminder</span>
+              </div>
+              <p className="text-sky-600 mb-2">
+                We know you're excited to share your gratitude, but today's surprise notification hasn't arrived yet! 
+              </p>
+              <p className="text-sm text-sky-500">
+                Keep your notifications on - it could come at any moment today! 🙏
+              </p>
             </div>
-            <p className="text-sm text-purple-200">
-              We know you're excited to share your gratitude, but today's surprise notification hasn't arrived yet! 
-            </p>
-            <p className="text-xs text-purple-300 mt-1">
-              Keep your notifications on - it could come at any moment today! 🙏
-            </p>
-          </div>
+          )}
 
           {/* Show existing entry or form */}
           {todayEntry ? (
-            <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-4">
-              <h3 className="text-green-400 font-medium mb-2">✅ Posted today!</h3>
-              <p className="text-slate-300 mb-2">{todayEntry.text}</p>
+            <div className="bg-gradient-to-r from-nature-50 to-green-100 border border-nature-200 rounded-2xl p-6 soft-shadow">
+              <div className="flex items-center space-x-3 mb-4">
+                <div className="w-8 h-8 bg-nature-500 rounded-full flex items-center justify-center">
+                  <span className="text-white text-lg">✓</span>
+                </div>
+                <h3 className="text-nature-700 font-semibold text-lg">Posted today!</h3>
+              </div>
+              <p className="text-foreground mb-4 leading-relaxed">{todayEntry.text}</p>
               {todayEntry.photo_url && (
                 <img 
                   src={todayEntry.photo_url} 
                   alt="Gratitude post" 
-                  className="w-full max-w-xs rounded-lg mt-2"
+                  className="w-full max-w-xs rounded-2xl mt-4 soft-shadow"
                 />
               )}
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-6">
               {/* Photo Preview */}
               {photoPreview && (
-                <div className="flex items-center space-x-3">
+                <div className="flex items-center space-x-4">
                   <img 
                     src={photoPreview} 
                     alt="Preview" 
-                    className="w-16 h-16 rounded-lg object-cover border border-slate-600"
+                    className="w-20 h-20 rounded-2xl object-cover soft-shadow"
                   />
                   <button 
                     onClick={() => {
                       setSelectedPhoto(null)
                       setPhotoPreview(null)
                     }}
-                    className="text-red-400 hover:text-red-300 text-sm"
+                    className="text-destructive hover:text-destructive/80 text-sm font-medium"
                   >
                     Remove
                   </button>
@@ -249,41 +282,43 @@ export default function TodayPage() {
               )}
 
               {/* Post Form */}
-              <textarea
-                placeholder="Share your gratitude (max 2000 characters)..."
-                value={gratitudeText}
-                onChange={(e) => setGratitudeText(e.target.value)}
-                className="w-full p-3 bg-slate-700/70 border border-slate-600 text-white placeholder:text-slate-400 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
-                rows={4}
-                maxLength={2000}
-              />
-              
-              <div className="flex justify-between items-center">
-                <div className="flex items-center space-x-3">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handlePhotoChange}
-                    className="hidden"
-                    id="post-photo"
-                  />
-                  <label
-                    htmlFor="post-photo"
-                    className="cursor-pointer text-sm text-slate-400 hover:text-slate-300 transition-colors"
+              <div className="space-y-4">
+                <textarea
+                  placeholder="Share your gratitude (max 2000 characters)..."
+                  value={gratitudeText}
+                  onChange={(e) => setGratitudeText(e.target.value)}
+                  className="w-full p-4 bg-card border border-border text-foreground placeholder:text-muted-foreground rounded-2xl resize-none focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all duration-200"
+                  rows={4}
+                  maxLength={2000}
+                />
+                
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center space-x-4">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handlePhotoChange}
+                      className="hidden"
+                      id="post-photo"
+                    />
+                    <label
+                      htmlFor="post-photo"
+                      className="cursor-pointer text-sm text-muted-foreground hover:text-accent transition-colors font-medium"
+                    >
+                      📷 Add Photo
+                    </label>
+                    <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded-full">
+                      {gratitudeText.length}/2000
+                    </span>
+                  </div>
+                  <Button 
+                    onClick={handlePost}
+                    disabled={!gratitudeText.trim() || isPosting}
+                    className="soft-button bg-primary hover:bg-primary/90 text-primary-foreground px-6"
                   >
-                    📷 Add Photo
-                  </label>
-                  <span className="text-xs text-slate-500">
-                    {gratitudeText.length}/2000
-                  </span>
+                    {isPosting ? 'Posting...' : 'Post'}
+                  </Button>
                 </div>
-                <Button 
-                  onClick={handlePost}
-                  disabled={!gratitudeText.trim() || isPosting}
-                  className="bg-primary hover:bg-primary/90 text-primary-foreground"
-                >
-                  {isPosting ? 'Posting...' : 'Post'}
-                </Button>
               </div>
             </div>
           )}
@@ -291,27 +326,27 @@ export default function TodayPage() {
 
         {/* Recent Entries */}
         {recentEntries.length > 0 && !todayEntry && (
-          <div className="gradient-card rounded-lg p-6 mb-20">
-            <h2 className="text-lg font-semibold mb-4 text-white">Your Recent Gratitude</h2>
+          <div className="mb-20">
+            <h2 className="text-xl font-semibold mb-6 text-foreground font-nunito">Your Recent Gratitude</h2>
             <div className="space-y-4">
               {recentEntries.slice(0, 3).map((entry, index) => (
-                <div key={index} className="bg-slate-700/50 rounded-lg p-4 border border-slate-600">
-                  <div className="flex items-center space-x-2 mb-2">
-                    <span className="text-xs text-slate-400">
+                <div key={index} className="soft-card p-5 hover-lift">
+                  <div className="flex items-center space-x-2 mb-3">
+                    <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded-full">
                       {new Date(entry.created_at).toLocaleDateString()}
                     </span>
                   </div>
-                  <p className="text-xs text-purple-200 mb-2 italic">
+                  <p className="text-sm text-accent mb-3 italic font-medium">
                     "{entry.prompts?.text}"
                   </p>
-                  <p className="text-sm text-slate-300">
+                  <p className="text-foreground leading-relaxed">
                     {entry.text.length > 100 ? `${entry.text.substring(0, 100)}...` : entry.text}
                   </p>
                   {entry.photo_url && (
                     <img 
                       src={entry.photo_url} 
                       alt="Gratitude post" 
-                      className="w-16 h-16 rounded-lg mt-2 object-cover"
+                      className="w-20 h-20 rounded-2xl mt-3 object-cover soft-shadow"
                     />
                   )}
                 </div>
@@ -322,18 +357,18 @@ export default function TodayPage() {
 
         {/* Navigation */}
         <div className="fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur-sm border-t border-border">
-          <div className="max-w-md mx-auto flex justify-around py-3">
+          <div className="max-w-md mx-auto flex justify-around py-4">
             <button className="flex flex-col items-center text-primary">
-              <span className="text-lg">📝</span>
-              <span className="text-xs">Today</span>
+              <span className="text-xl mb-1">🌱</span>
+              <span className="text-xs font-medium">Today</span>
             </button>
-            <Link href="/dashboard/circle" className="flex flex-col items-center text-slate-400 hover:text-slate-300">
-              <span className="text-lg">👥</span>
-              <span className="text-xs">Circle</span>
+            <Link href="/dashboard/circle" className="flex flex-col items-center text-muted-foreground hover:text-accent transition-colors">
+              <span className="text-xl mb-1">🌿</span>
+              <span className="text-xs font-medium">Circle</span>
             </Link>
-            <Link href="/dashboard/profile" className="flex flex-col items-center text-slate-400 hover:text-slate-300">
-              <span className="text-lg">👤</span>
-              <span className="text-xs">Profile</span>
+            <Link href="/dashboard/profile" className="flex flex-col items-center text-muted-foreground hover:text-accent transition-colors">
+              <span className="text-xl mb-1">🌸</span>
+              <span className="text-xs font-medium">Profile</span>
             </Link>
           </div>
         </div>

@@ -2,9 +2,7 @@ import { updateSession } from './src/lib/supabase/middleware'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export async function middleware(request: NextRequest) {
-  // Temporarily disabled to debug 404 issues
-  // return await updateSession(request)
-  return NextResponse.next()
+  return await updateSession(request)
 }
 
 export const config = {
