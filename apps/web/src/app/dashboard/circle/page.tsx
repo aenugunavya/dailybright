@@ -2,12 +2,13 @@
 
 import { useAuth } from '@/providers/auth-provider'
 import { useEffect, useState } from 'react'
-import { databaseService } from '@/lib/database'
+import { createDatabaseService } from '@/lib/database'
 import { AddFriendsModal } from '@/components/friends/add-friends-modal'
+import { PendingRequests } from '@/components/friends/pending-requests'
 import Link from 'next/link'
 
 export default function CirclePage() {
-  const { user } = useAuth()
+  const { user, supabase } = useAuth()
   const [friends, setFriends] = useState<any[]>([])
   const [friendEntries, setFriendEntries] = useState<any[]>([])
   const [isAddFriendsOpen, setIsAddFriendsOpen] = useState(false)
@@ -25,6 +26,7 @@ export default function CirclePage() {
 
     setIsLoading(true)
     try {
+      const databaseService = createDatabaseService(supabase)
       const { data, error } = await databaseService.getFriends(user.id)
       if (!error && data) {
         setFriends(data)
@@ -40,12 +42,35 @@ export default function CirclePage() {
     if (!user) return
 
     try {
-      const { data, error } = await databaseService.getFriendsRecentEntries(user.id)
-      if (!error && data) {
-        setFriendEntries(data)
+      console.log('🔍 Loading friend entries for user:', user.id)
+      
+      // Use the working RPC function instead of the broken database service
+      const { data, error } = await supabase.rpc('get_friends_entries_safe', {
+        p_user_id: user.id
+      })
+      
+      console.log('🔍 RPC result:', { data, error })
+      
+      if (!error && data?.success) {
+        console.log('✅ Loaded friend entries:', data.count, 'entries')
+        console.log('🔍 Entries data:', data.entries)
+        
+        // Debug prompt data
+        if (data.entries && data.entries.length > 0) {
+          console.log('🔍 First entry prompt:', data.entries[0].prompts)
+          console.log('🔍 First entry prompt text:', data.entries[0].prompts?.text)
+        }
+        
+        setFriendEntries(data.entries || [])
+      } else {
+        if (data?.error) {
+          console.error('❌ Failed to load friend entries:', data.error)
+        }
+        setFriendEntries([])
       }
     } catch (error) {
       console.error('Error loading friend entries:', error)
+      setFriendEntries([])
     }
   }
 
@@ -70,6 +95,11 @@ export default function CirclePage() {
             Add Friends
           </button>
         </div>
+        
+        {/* Pending Friend Requests */}
+        <PendingRequests onRequestUpdated={loadFriends} />
+        
+
         
         {isLoading ? (
           <div className="soft-card p-8 text-center">
@@ -97,31 +127,29 @@ export default function CirclePage() {
                 <h2 className="text-xl font-semibold text-foreground mb-6 font-nunito">Recent Gratitude from Friends</h2>
                 <div className="space-y-4">
                   {friendEntries.map((entry, index) => (
-                    <div key={index} className="soft-card p-5 hover-lift">
+                    <div key={index} className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow">
                       <div className="flex items-start space-x-4">
-                        <div className="w-12 h-12 bg-gradient-to-br from-nature-400 to-nature-500 rounded-2xl flex items-center justify-center soft-shadow">
+                        <div className="w-12 h-12 bg-primary rounded-xl flex items-center justify-center">
                           <span className="text-white text-lg">🌿</span>
                         </div>
                         <div className="flex-1">
                           <div className="flex items-center space-x-3 mb-2">
                             <h4 className="font-medium text-foreground text-base">
-                              {entry.users?.display_name || 'Anonymous User'}
+                              {entry.display_name || 'Anonymous User'}
                             </h4>
-                            <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded-full">
+                            <span className="text-xs text-muted-foreground bg-gray-100 px-2 py-1 rounded-full">
                               {new Date(entry.created_at).toLocaleDateString()}
                             </span>
                           </div>
-                          <p className="text-sm text-accent mb-3 italic font-medium">
-                            "{entry.prompts?.text}"
-                          </p>
-                          <p className="text-foreground leading-relaxed mb-3">
+
+                          <p className="text-foreground leading-relaxed mb-3 text-base">
                             {entry.text}
                           </p>
                           {entry.photo_url && (
                             <img 
                               src={entry.photo_url} 
                               alt="Gratitude post" 
-                              className="w-full max-w-xs rounded-2xl mt-3 soft-shadow"
+                              className="w-full max-w-xs rounded-lg mt-3 border border-gray-200"
                             />
                           )}
                         </div>
@@ -138,9 +166,9 @@ export default function CirclePage() {
               {friends.map((friendship, index) => {
                 const friend = friendship.friend_id === user.id ? friendship.user : friendship.friend
                 return (
-                  <div key={index} className="soft-card p-5 hover-lift">
+                  <div key={index} className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow">
                     <div className="flex items-center space-x-4">
-                      <div className="w-14 h-14 bg-gradient-to-br from-warm-400 to-warm-500 rounded-2xl flex items-center justify-center soft-shadow">
+                      <div className="w-14 h-14 bg-primary rounded-xl flex items-center justify-center">
                         <span className="text-white text-xl">🌸</span>
                       </div>
                       <div className="flex-1">
@@ -149,7 +177,7 @@ export default function CirclePage() {
                         </h3>
                         <p className="text-sm text-muted-foreground">{friend.email}</p>
                       </div>
-                      <div className="text-nature-600 text-sm font-medium bg-nature-50 px-3 py-1 rounded-full">
+                      <div className="text-primary text-sm font-medium bg-primary/10 px-3 py-1 rounded-full">
                         🌿 Friends
                       </div>
                     </div>

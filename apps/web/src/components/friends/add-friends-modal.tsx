@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { databaseService } from '@/lib/database'
+import { createDatabaseService } from '@/lib/database'
 import { useAuth } from '@/providers/auth-provider'
 
 interface AddFriendsModalProps {
@@ -13,7 +13,7 @@ interface AddFriendsModalProps {
 }
 
 export function AddFriendsModal({ isOpen, onClose, onFriendAdded }: AddFriendsModalProps) {
-  const { user } = useAuth()
+  const { user, supabase } = useAuth()
   const [email, setEmail] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [message, setMessage] = useState('')
@@ -32,6 +32,7 @@ export function AddFriendsModal({ isOpen, onClose, onFriendAdded }: AddFriendsMo
     setMessage('')
 
     try {
+      const databaseService = createDatabaseService(supabase)
       const { error } = await databaseService.sendFriendRequest(user.id, email.trim())
       
       if (error) {

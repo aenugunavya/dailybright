@@ -92,8 +92,8 @@ ALTER TABLE public.friends ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.reactions ENABLE ROW LEVEL SECURITY;
 
 -- Users policies
-CREATE POLICY "Users can view own profile" ON public.users
-    FOR SELECT USING (auth.uid() = id);
+CREATE POLICY "Users can view and search profiles" ON public.users
+    FOR SELECT USING (auth.role() = 'authenticated');
 
 CREATE POLICY "Users can update own profile" ON public.users
     FOR UPDATE USING (auth.uid() = id);
@@ -206,6 +206,74 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- Function to get current authenticated user ID
+CREATE OR REPLACE FUNCTION public.get_auth_uid()
+RETURNS UUID AS $$
+BEGIN
+    RETURN auth.uid();
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Function to create entry with proper authentication
+CREATE OR REPLACE FUNCTION public.create_entry_safe(
+    p_user_id UUID,
+    p_date DATE,
+    p_prompt_id INTEGER,
+    p_text TEXT,
+    p_photo_url TEXT DEFAULT NULL,
+    p_on_time BOOLEAN DEFAULT false
+)
+RETURNS JSON AS $$
+DECLARE
+    v_auth_uid UUID;
+    v_entry_id UUID;
+    v_debug_info JSON;
+BEGIN
+    -- Get the authenticated user ID
+    v_auth_uid := auth.uid();
+    
+    -- Check if user is authenticated
+    IF v_auth_uid IS NULL THEN
+        RETURN json_build_object('success', false, 'error', 'Not authenticated');
+    END IF;
+    
+    -- Check if user is inserting their own entry
+    IF v_auth_uid != p_user_id THEN
+        RETURN json_build_object('success', false, 'error', 'Can only insert own entries');
+    END IF;
+    
+    -- Debug: Log the parameters
+    v_debug_info := json_build_object(
+        'auth_uid', v_auth_uid,
+        'p_user_id', p_user_id,
+        'p_date', p_date,
+        'p_prompt_id', p_prompt_id,
+        'p_text', p_text,
+        'p_photo_url', p_photo_url,
+        'p_on_time', p_on_time
+    );
+    
+    -- Insert the entry
+    INSERT INTO public.entries (user_id, date, prompt_id, text, photo_url, on_time)
+    VALUES (p_user_id, p_date, p_prompt_id, p_text, p_photo_url, p_on_time)
+    RETURNING id INTO v_entry_id;
+    
+    -- Return success with debug info
+    RETURN json_build_object(
+        'success', true, 
+        'entry_id', v_entry_id,
+        'debug_info', v_debug_info
+    );
+    
+EXCEPTION WHEN OTHERS THEN
+    RETURN json_build_object(
+        'success', false, 
+        'error', SQLERRM,
+        'debug_info', v_debug_info
+    );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
 -- Triggers for updated_at
 CREATE TRIGGER set_updated_at_users
     BEFORE UPDATE ON public.users
@@ -303,3 +371,101 @@ INSERT INTO public.prompts (text, tags) VALUES
     ('What''s something you''re looking forward to?', ARRAY['future', 'anticipation']),
     ('What''s a challenge you''ve overcome that you''re proud of?', ARRAY['growth', 'resilience']),
     ('What''s something in your home that you''re grateful for?', ARRAY['home', 'comfort']);
+
+-- Function to get today's entry safely
+CREATE OR REPLACE FUNCTION public.get_today_entry_safe(p_user_id UUID, p_date DATE)
+RETURNS JSON AS $$
+DECLARE
+    v_auth_uid UUID;
+    v_entry RECORD;
+BEGIN
+    -- Get the authenticated user ID
+    v_auth_uid := auth.uid();
+    
+    -- Check if user is authenticated
+    IF v_auth_uid IS NULL THEN
+        RETURN json_build_object('success', false, 'error', 'Not authenticated');
+    END IF;
+    
+    -- Check if user is requesting their own entry
+    IF v_auth_uid != p_user_id THEN
+        RETURN json_build_object('success', false, 'error', 'Can only read own entries');
+    END IF;
+    
+    -- Get the entry
+    SELECT * INTO v_entry FROM public.entries 
+    WHERE user_id = p_user_id AND date = p_date;
+    
+    -- Return the entry or null
+    IF v_entry IS NOT NULL THEN
+        RETURN json_build_object('success', true, 'entry', row_to_json(v_entry));
+    ELSE
+        RETURN json_build_object('success', false, 'entry', null);
+    END IF;
+    
+EXCEPTION WHEN OTHERS THEN
+    RETURN json_build_object('success', false, 'error', SQLERRM);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Function to get friends' recent entries safely
+CREATE OR REPLACE FUNCTION public.get_friends_entries_safe(p_user_id UUID)
+RETURNS JSON AS $$
+DECLARE
+    v_auth_uid UUID;
+    v_friends JSON;
+    v_entries JSON;
+BEGIN
+    -- Get the authenticated user ID
+    v_auth_uid := auth.uid();
+    
+    -- Check if user is authenticated
+    IF v_auth_uid IS NULL THEN
+        RETURN json_build_object('success', false, 'error', 'Not authenticated');
+    END IF;
+    
+    -- Check if user is requesting their own friends' entries
+    IF v_auth_uid != p_user_id THEN
+        RETURN json_build_object('success', false, 'error', 'Can only read own friends entries');
+    END IF;
+    
+    -- Get friends' entries with proper joins
+    SELECT json_agg(
+        json_build_object(
+            'id', e.id,
+            'text', e.text,
+            'photo_url', e.photo_url,
+            'created_at', e.created_at,
+            'user_id', e.user_id,
+            'prompt_id', e.prompt_id,
+            'users', json_build_object(
+                'display_name', u.display_name,
+                'email', u.email
+            ),
+            'prompts', json_build_object(
+                'text', p.text
+            )
+        )
+    ) INTO v_entries
+    FROM public.entries e
+    JOIN public.users u ON e.user_id = u.id
+    JOIN public.prompts p ON e.prompt_id = p.id
+    JOIN public.friends f ON (
+        (f.user_id = p_user_id AND f.friend_id = e.user_id) OR
+        (f.friend_id = p_user_id AND f.user_id = e.user_id)
+    )
+    WHERE f.status = 'accepted'
+    AND e.date >= CURRENT_DATE - INTERVAL '7 days'
+    ORDER BY e.created_at DESC;
+    
+    -- Return the entries
+    IF v_entries IS NOT NULL THEN
+        RETURN json_build_object('success', true, 'entries', v_entries, 'count', json_array_length(v_entries));
+    END IF;
+    
+    RETURN json_build_object('success', true, 'entries', '[]'::JSON, 'count', 0);
+    
+EXCEPTION WHEN OTHERS THEN
+    RETURN json_build_object('success', false, 'error', SQLERRM);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;

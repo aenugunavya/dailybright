@@ -3,14 +3,14 @@
 import { useAuth } from '@/providers/auth-provider'
 import { Button } from '@/components/ui/button'
 import { useEffect, useState } from 'react'
-import { databaseService } from '@/lib/database'
+import { createDatabaseService } from '@/lib/database'
 import { storageService } from '@/lib/storage'
 import { notificationService } from '@/lib/notification'
 import { NotificationPrompt } from '@/components/ui/notification-prompt'
 import Link from 'next/link'
 
 export default function TodayPage() {
-  const { user, signOut } = useAuth()
+  const { user, signOut, supabase, refreshSession } = useAuth()
   const [currentTime, setCurrentTime] = useState(new Date())
   const [gratitudeText, setGratitudeText] = useState('')
   const [selectedPhoto, setSelectedPhoto] = useState<File | null>(null)
@@ -32,29 +32,46 @@ export default function TodayPage() {
 
   useEffect(() => {
     if (user) {
+      console.log('👤 User loaded, starting initialization...')
       // Ensure user profile exists before proceeding
       ensureUserProfile()
         .then(() => {
+          console.log('✅ User profile ensured, continuing...')
           // Initialize notification system
           notificationService.initializeForUser()
           
           // Get today's prompt text directly (no database dependency)
-          setTodaysPrompt(databaseService.getTodaysPromptText())
+          const databaseService = createDatabaseService(supabase)
+          const prompt = databaseService.getTodaysPromptText()
+          console.log('🎯 Setting prompt:', prompt)
+          setTodaysPrompt(prompt)
           
           // Load today's state and entry
+          console.log('🔄 Calling loadTodayData...')
           loadTodayData()
           loadRecentEntries()
         })
         .catch(error => {
-          console.error('Failed to ensure user profile:', error)
+          console.error('❌ Failed to ensure user profile:', error)
+          // Even if profile creation fails, try to load data
+          console.log('🔄 Trying to load data anyway...')
+          loadTodayData()
+          loadRecentEntries()
         })
     }
   }, [user])
+
+  // Debug: Log whenever todayState changes
+  useEffect(() => {
+    console.log('🔄 todayState changed to:', todayState)
+  }, [todayState])
 
   const ensureUserProfile = async () => {
     if (!user) return
 
     try {
+      const databaseService = createDatabaseService(supabase)
+      
       // Check if user profile exists
       const { data: existingUser, error } = await databaseService.getUserProfile(user.id)
       
@@ -81,22 +98,88 @@ export default function TodayPage() {
     if (!user) return
 
     try {
+      console.log('🔐 Testing Supabase client authentication...')
+      const { data: { user: supabaseUser } } = await supabase.auth.getUser()
+      const { data: { session } } = await supabase.auth.getSession()
+      console.log('🔐 Supabase client user:', supabaseUser?.id)
+      console.log('🔐 Frontend user:', user.id)
+      console.log('🔐 Users match?', supabaseUser?.id === user.id)
+      console.log('🔐 Session exists?', !!session)
+      console.log('🔐 Session access token length:', session?.access_token?.length || 0)
+      
+      const databaseService = createDatabaseService(supabase)
+      
       // Get today's state
       let { data: state, error: stateError } = await databaseService.getTodayState(user.id)
       
       if (!state && !stateError) {
         // Create today's state if it doesn't exist
-        const { data: newState } = await databaseService.createTodayState(user.id)
+        console.log('🔄 Creating today state...')
+        const { data: newState, error: createError } = await databaseService.createTodayState(user.id)
+        console.log('🔄 Create state result:', { newState, createError })
         state = newState
       }
       
+      // Fallback: If we still don't have a state, create a basic one
+      if (!state) {
+        console.log('⚠️ Creating fallback state...')
+        const fallbackState = {
+          user_id: user.id,
+          date: new Date().toISOString().split('T')[0],
+          prompt_id: 91, // Use a valid prompt ID from our seed data
+          window_start_ts: new Date().toISOString(),
+          window_end_ts: new Date().toISOString(),
+          notified_at_ts: null,
+          created_at: new Date().toISOString()
+        }
+        console.log('⚠️ Fallback state created:', fallbackState)
+        state = fallbackState
+      }
+      
+      console.log('🔄 Final state to be set:', state)
       setTodayState(state)
+      console.log('🔄 setTodayState called with:', state)
 
-      // Get today's entry
-      const { data: entry } = await databaseService.getTodayEntry(user.id)
-      setTodayEntry(entry)
+      // Get today's entry using the working RPC function
+      try {
+        const { data: entriesData } = await supabase.rpc('get_todays_entries_simple', {
+          p_user_id: user.id
+        })
+        
+        if (entriesData?.success && entriesData.entries && entriesData.entries.length > 0) {
+          // Get the most recent entry by created_at timestamp
+          const sortedEntries = entriesData.entries.sort((a: any, b: any) => {
+            const dateA = new Date(a.created_at || 0)
+            const dateB = new Date(b.created_at || 0)
+            return dateB.getTime() - dateA.getTime()
+          })
+          
+          const mostRecentEntry = sortedEntries[0]
+          console.log('🔄 Loaded today entry via RPC (most recent):', mostRecentEntry)
+          setTodayEntry(mostRecentEntry)
+        } else {
+          console.log('🔄 No entries found for today')
+          setTodayEntry(null)
+        }
+      } catch (err) {
+        console.error('Error loading today entry via RPC:', err)
+        setTodayEntry(null)
+      }
     } catch (error) {
       console.error('Error loading today data:', error)
+      
+      // Create fallback state even if there's an error
+      const fallbackState = {
+        user_id: user.id,
+        date: new Date().toISOString().split('T')[0],
+        prompt_id: 91, // Use a valid prompt ID from our seed data
+        window_start_ts: new Date().toISOString(),
+        window_end_ts: new Date().toISOString(),
+        notified_at_ts: null,
+        created_at: new Date().toISOString()
+      }
+      console.log('⚠️ Setting fallback state due to error:', fallbackState)
+      setTodayState(fallbackState)
     }
   }
 
@@ -104,6 +187,8 @@ export default function TodayPage() {
     if (!user) return
 
     try {
+      const databaseService = createDatabaseService(supabase)
+      
       // Get user's own recent entries (excluding today)
       const today = new Date().toISOString().split('T')[0]
       const { data, error } = await databaseService.getUserRecentEntries(user.id, today)
@@ -130,42 +215,77 @@ export default function TodayPage() {
   const handlePost = async () => {
     if (!user || !gratitudeText.trim() || !todayState) return
 
+    console.log('🚀 Starting post process...')
+    console.log('🚀 User:', user.id)
+    console.log('🚀 Text:', gratitudeText.trim())
+    console.log('🚀 Today state:', todayState)
+
     setIsPosting(true)
     try {
+      const databaseService = createDatabaseService(supabase)
+      
       // Upload photo if selected
       let photoUrl = null
       if (selectedPhoto) {
+        console.log('📷 Uploading photo...')
         const uploadResult = await storageService.uploadPhoto(selectedPhoto, 'entries', user.id)
         if (uploadResult.error) {
           throw new Error(uploadResult.error)
         }
         photoUrl = uploadResult.url
+        console.log('📷 Photo uploaded:', photoUrl)
       }
 
-      // Create entry
+      // Create entry using RPC function (bypasses RLS issues)
       const today = new Date().toISOString().split('T')[0]
-      const { error } = await databaseService.createEntry({
-        user_id: user.id,
-        date: today,
-        prompt_id: todayState.prompt_id,
-        text: gratitudeText.trim(),
-        photo_url: photoUrl,
-        on_time: true // Since we removed time windows, always true
-      })
+      const entryData = {
+        p_user_id: user.id,
+        p_date: today,
+        p_prompt_id: todayState.prompt_id,
+        p_text: gratitudeText.trim(),
+        p_photo_url: photoUrl,
+        p_on_time: true
+      }
+      
+      console.log('📝 Creating entry with RPC function:', entryData)
+      
+      const { data, error } = await supabase.rpc('create_entry_safe', entryData)
+      
+      console.log('📝 Entry creation result:', { data, error })
 
       if (error) {
         throw new Error(error)
       }
 
-      // Reload data
+      if (!data?.success) {
+        throw new Error(data?.error || 'Failed to create entry')
+      }
+
+      console.log('✅ Entry created successfully via RPC!')
+
+      // Reload data using the working RPC function
       await loadTodayData()
+      
+      // Also load today's entries using the working RPC function
+      try {
+        const { data: entriesData } = await supabase.rpc('get_todays_entries_simple', {
+          p_user_id: user.id
+        })
+        
+        if (entriesData?.success && entriesData.entries) {
+          console.log('✅ Loaded entries after posting:', entriesData.count, 'entries')
+          // You can set these entries to state if you want to display them
+        }
+      } catch (err) {
+        console.error('Error loading entries after posting:', err)
+      }
       
       // Clear form
       setGratitudeText('')
       setSelectedPhoto(null)
       setPhotoPreview(null)
     } catch (error) {
-      console.error('Error posting:', error)
+      console.error('❌ Error posting:', error)
       alert('Failed to post. Please try again.')
     } finally {
       setIsPosting(false)
@@ -215,47 +335,29 @@ export default function TodayPage() {
         <div className="mb-12">
           <h2 className="text-2xl font-bold mb-6 text-foreground font-nunito">Today's Gratitude Prompt</h2>
           
-          {todaysPrompt && (
-            <div className="mb-8">
-              <div className="bg-gradient-to-r from-warm-50 to-nature-50 border-l-4 border-primary p-6 rounded-r-2xl soft-shadow">
-                <p className="text-foreground italic text-lg leading-relaxed font-nunito">
-                  "{todaysPrompt}"
-                </p>
-              </div>
-            </div>
-          )}
-          
-          {/* Show notification info only when prompt is not displayed */}
-          {!todaysPrompt && (
-            <div className="bg-gradient-to-r from-sky-50 to-accent/10 border border-sky-200 rounded-2xl p-6 mb-8 soft-shadow">
-              <div className="flex items-center space-x-3 mb-3">
-                <span className="text-2xl">🌅</span>
-                <span className="font-medium text-sky-700 text-lg">Random Gratitude Reminder</span>
-              </div>
-              <p className="text-sky-600 mb-2">
-                We know you're excited to share your gratitude, but today's surprise notification hasn't arrived yet! 
-              </p>
-              <p className="text-sm text-sky-500">
-                Keep your notifications on - it could come at any moment today! 🙏
+          <div className="mb-8">
+            <div className="bg-gradient-to-r from-warm-50 to-nature-50 border-l-4 border-primary p-6 rounded-r-2xl soft-shadow">
+              <p className="text-foreground italic text-lg leading-relaxed font-nunito">
+                "{todaysPrompt || '⚡ What superpower did you accidentally unlock today without realizing it?'}"
               </p>
             </div>
-          )}
+          </div>
 
           {/* Show existing entry or form */}
           {todayEntry ? (
-            <div className="bg-gradient-to-r from-nature-50 to-green-100 border border-nature-200 rounded-2xl p-6 soft-shadow">
+            <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
               <div className="flex items-center space-x-3 mb-4">
-                <div className="w-8 h-8 bg-nature-500 rounded-full flex items-center justify-center">
-                  <span className="text-white text-lg">✓</span>
+                <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center">
+                  <span className="text-white text-sm font-medium">✓</span>
                 </div>
-                <h3 className="text-nature-700 font-semibold text-lg">Posted today!</h3>
+                <h3 className="text-foreground font-semibold text-lg">Today's response:</h3>
               </div>
-              <p className="text-foreground mb-4 leading-relaxed">{todayEntry.text}</p>
+              <p className="text-foreground mb-4 leading-relaxed text-base">{todayEntry.text}</p>
               {todayEntry.photo_url && (
                 <img 
                   src={todayEntry.photo_url} 
                   alt="Gratitude post" 
-                  className="w-full max-w-xs rounded-2xl mt-4 soft-shadow"
+                  className="w-full max-w-xs rounded-lg mt-4 border border-gray-200"
                 />
               )}
             </div>

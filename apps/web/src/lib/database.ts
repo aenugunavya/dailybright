@@ -12,7 +12,7 @@ type Friend = Tables['friends']['Row']
 type FriendInsert = Tables['friends']['Insert']
 
 export class DatabaseService {
-  private supabase = createClient()
+  constructor(private supabase: any) {}
 
   // User operations
   async createUserProfile(user: UserInsert): Promise<{ data: User | null; error: string | null }> {
@@ -179,6 +179,13 @@ export class DatabaseService {
   // Entry operations
   async createEntry(entry: EntryInsert): Promise<{ data: Entry | null; error: string | null }> {
     try {
+      console.log('🔐 Creating entry with authenticated client...')
+      console.log('🔐 Entry data:', entry)
+      
+      // Test if we can get the authenticated user
+      const { data: { user: authUser } } = await this.supabase.auth.getUser()
+      console.log('🔐 Authenticated user from client:', authUser?.id)
+      
       const { data, error } = await this.supabase
         .from('entries')
         .insert(entry)
@@ -186,11 +193,14 @@ export class DatabaseService {
         .single()
 
       if (error) {
+        console.log('❌ Entry creation error:', error)
         return { data: null, error: error.message }
       }
 
+      console.log('✅ Entry created successfully:', data)
       return { data, error: null }
     } catch (error) {
+      console.log('💥 Exception in createEntry:', error)
       return { data: null, error: 'Failed to create entry' }
     }
   }
@@ -249,7 +259,7 @@ export class DatabaseService {
       }
 
       // Get friend IDs
-      const friendIds = friends.map(friendship => 
+      const friendIds = friends.map((friendship: any) => 
         friendship.user_id === userId ? friendship.friend_id : friendship.user_id
       )
 
@@ -374,6 +384,27 @@ export class DatabaseService {
     }
   }
 
+  async getPendingFriendRequests(userId: string): Promise<{ data: any[] | null; error: string | null }> {
+    try {
+      const { data, error } = await this.supabase
+        .from('friends')
+        .select(`
+          *,
+          sender:users!friends_user_id_fkey(id, email, display_name, profile_photo_url)
+        `)
+        .eq('friend_id', userId)
+        .eq('status', 'pending')
+
+      if (error) {
+        return { data: null, error: error.message }
+      }
+
+      return { data, error: null }
+    } catch (error) {
+      return { data: null, error: 'Failed to get pending friend requests' }
+    }
+  }
+
   async updateFriendStatus(userId: string, friendId: string, status: 'accepted' | 'blocked'): Promise<{ data: Friend | null; error: string | null }> {
     try {
       const { data, error } = await this.supabase
@@ -393,6 +424,8 @@ export class DatabaseService {
       return { data: null, error: 'Failed to update friend status' }
     }
   }
+
+
 
   private getDeterministicPromptId(): number {
     // Use deterministic selection based on today's date
@@ -453,6 +486,12 @@ export class DatabaseService {
   }
 }
 
-export const databaseService = new DatabaseService()
+// Factory function to create database service with authenticated client
+export function createDatabaseService(supabaseClient: any) {
+  return new DatabaseService(supabaseClient)
+}
+
+// For backward compatibility, but this won't work for authenticated operations
+export const databaseService = new DatabaseService(createClient())
 
 
