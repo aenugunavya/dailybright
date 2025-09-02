@@ -1,12 +1,7 @@
 {
   "version": 2,
   "framework": "nextjs",
-  "buildCommand": "cd apps/web && npm install && npm run build",
-  "outputDirectory": "apps/web/.next",
-  "installCommand": "cd apps/web && npm install",
-  "functions": {
-    "apps/web/src/app/api/**": {
-      "runtime": "nodejs20.x"
-    }
-  }
+  "rootDirectory": "apps/web",
+  "buildCommand": "npm run build:vercel",
+  "installCommand": "npm install"
 }
