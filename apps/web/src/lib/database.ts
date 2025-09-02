@@ -167,15 +167,11 @@ export class DatabaseService {
         .single()
 
       if (error) {
-        console.error('❌ Failed to create daily state:', error)
-        console.error('❌ Error details:', JSON.stringify(error, null, 2))
         return { data: null, error: error.message || 'Unknown database error' }
       }
       
-      console.log('✅ Daily state created successfully:', data?.user_id)
       return { data, error: null }
     } catch (error) {
-      console.error('💥 Error in createTodayState:', error)
       return { data: null, error: 'Failed to create daily state' }
     }
   }
